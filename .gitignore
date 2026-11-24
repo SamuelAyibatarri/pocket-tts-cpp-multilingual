@@ -1,0 +1,14 @@
+.build/
+.deps/
+dist/
+bundles/
+*.so
+*.so.*
+*.dll
+*.dylib
+*.lib
+*.exe
+pocket-tts
+__pycache__/
+*.pyc
+.venv/
