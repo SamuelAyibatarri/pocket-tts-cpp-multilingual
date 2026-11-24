@@ -14,12 +14,15 @@ jobs:
         include:
           - os: ubuntu-latest
             plat: linux-x64
+            rid: linux-x64
             files: "libpocket_tts.so libonnxruntime.so*"
           - os: windows-latest
             plat: win-x64
+            rid: win-x64
             files: "Release/pocket_tts.dll Release/onnxruntime.dll pocket_tts.dll onnxruntime.dll"
           - os: macos-14
             plat: macos-arm64
+            rid: osx-arm64
             files: "libpocket_tts.dylib libonnxruntime.dylib"
 
     runs-on: ${{ matrix.os }}
@@ -27,8 +30,44 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Stage ONNX Runtime 1.23.2 from Microsoft NuGet
+        shell: bash
+        run: |
+          ORT_VER=1.23.2
+          PY=$(command -v python3 || command -v python)
+          curl -fSL "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime/${ORT_VER}/microsoft.ml.onnxruntime.${ORT_VER}.nupkg" -o ort.nupkg
+          "$PY" -c "
+          import zipfile, pathlib, shutil
+          rid = '${{ matrix.rid }}'
+          inc_out = pathlib.Path('ort/include')
+          lib_out = pathlib.Path('ort/lib')
+          inc_out.mkdir(parents=True, exist_ok=True)
+          lib_out.mkdir(parents=True, exist_ok=True)
+          with zipfile.ZipFile('ort.nupkg') as zf:
+              for info in zf.infolist():
+                  n = info.filename
+                  if n.endswith('/'):
+                      continue
+                  if n.startswith('build/native/include/'):
+                      rel = n[len('build/native/include/'):]
+                      dst = inc_out / rel
+                      dst.parent.mkdir(parents=True, exist_ok=True)
+                      with zf.open(info) as s, open(dst, 'wb') as d:
+                          shutil.copyfileobj(s, d)
+                  elif n.startswith(f'runtimes/{rid}/native/'):
+                      rel = n[len(f'runtimes/{rid}/native/'):]
+                      dst = lib_out / rel
+                      dst.parent.mkdir(parents=True, exist_ok=True)
+                      with zf.open(info) as s, open(dst, 'wb') as d:
+                          shutil.copyfileobj(s, d)
+          "
+          ls -la ort/include ort/lib
+
       - name: Configure CMake
-        run: cmake -B .build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIB=ON
+        shell: bash
+        run: |
+          ORT_ROOT="$(pwd -W 2>/dev/null || pwd)/ort"
+          cmake -B .build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIB=ON -DLOCAL_ORT_ROOT="$ORT_ROOT"
 
       - name: Build pocket-tts-lib
         run: cmake --build .build --config Release --target pocket-tts-lib -j4
