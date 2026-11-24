@@ -20,7 +20,7 @@ jobs:
             plat: win-x64
             rid: win-x64
             files: "Release/pocket_tts.dll Release/onnxruntime.dll pocket_tts.dll onnxruntime.dll"
-          - os: macos-14
+          - os: macos-latest
             plat: macos-arm64
             rid: osx-arm64
             files: "libpocket_tts.dylib libonnxruntime.dylib"
